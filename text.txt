@@ -1,0 +1,82 @@
+import re
+import urllib.parse
+
+def read_data_from_file(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return f.read()
+
+def extract_download_info(data):
+    # 提取URL
+    url_match = re.search(r'请求 URL:\s*(https?://[^\s]+)', data)
+    url = url_match.group(1) if url_match else None
+
+    # 提取Content-Disposition行
+    content_disp_match = re.search(r'Content-Disposition:.*', data, re.IGNORECASE | re.DOTALL)
+    if content_disp_match:
+        content_disp = content_disp_match.group(0)
+        #print("Content-Disposition line:", content_disp)  # 调试输出
+
+        # 从Content-Disposition中提取文件名
+        filename_match = re.search(r'filename=([^;\r\n]+)', content_disp)
+        if filename_match:
+            filename = filename_match.group(1).strip().strip('"')
+            filename = urllib.parse.unquote(filename)
+            #print("Raw filename:", filename)  # 调试输出
+        else:
+            filename = None
+    else:
+        filename = None
+
+    # 如果没有找到文件名，从URL中提取
+    if not filename and url:
+        filename = url.split('/')[-1].split('?')[0]
+        filename = urllib.parse.unquote(filename)
+
+    # 提取User-Agent
+    ua_match = re.search(r'User-Agent:\s*(.+)', data)
+    user_agent = ua_match.group(1) if ua_match else None
+
+    # 提取Referer
+    referer_match = re.search(r'Referer:\s*(.+)', data)
+    referer = referer_match.group(1) if referer_match else None
+
+    return url, filename, user_agent, referer
+
+def generate_wget_command(url, filename, user_agent, referer):
+    command = f'wget -O "{filename}" '
+    if user_agent:
+        command += f'--user-agent="{user_agent}" '
+    if referer:
+        command += f'--referer="{referer}" '
+    command += f'"{url}"'
+    return command
+
+# 文件路径
+file_path = r"D:\下载\liblib.txt"
+
+# 从文件读取数据
+try:
+    data = read_data_from_file(file_path)
+except FileNotFoundError:
+    print(f"错误：文件 '{file_path}' 不存在。")
+    exit(1)
+except PermissionError:
+    print(f"错误：没有权限读取文件 '{file_path}'。")
+    exit(1)
+except Exception as e:
+    print(f"读取文件时发生错误：{str(e)}")
+    exit(1)
+
+url, filename, user_agent, referer = extract_download_info(data)
+"""
+print("URL:", url)
+print("Filename:", filename)
+print("User-Agent:", user_agent)
+print("Referer:", referer)
+"""
+if filename:
+    wget_command = generate_wget_command(url, filename, user_agent, referer)
+    print("\nWget Command:")
+    print("!" + wget_command)
+else:
+    print("\nWarning: Filename could not be extracted.")
